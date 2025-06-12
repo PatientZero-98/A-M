@@ -4,7 +4,6 @@ import 'models/track_model.dart';
 import 'models/card_model.dart';
 import 'screens/home_screen.dart';
 
-
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
@@ -20,11 +19,10 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
 
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Ambience 4 DnD',
+      title: 'Dungeons&Music',
       theme: ThemeData.dark(),
       home: HomeScreen(),
     );

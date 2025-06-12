@@ -1,11 +1,11 @@
 {
-    "name": "music4dnd",
-    "short_name": "music4dnd",
+    "name": "Dungeons&Music",
+    "short_name": "Dungeons&Music",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Music player application for Dungeons & Dragons sessions",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

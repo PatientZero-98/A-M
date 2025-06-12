@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../models/card_model.dart';
+import '../core/theme/app_theme.dart';
 
 class CardEditorModal extends StatefulWidget {
   final CardPlaylistModel card;
@@ -35,20 +36,12 @@ class _CardEditorModalState extends State<CardEditorModal> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
+  Widget build(BuildContext context) {    return SingleChildScrollView(
       child: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              const Color(0xFF1A1A2E), // Deep blue-black
-              const Color(0xFF16213E), // Navy blue
-            ],
-          ),
+          gradient: AppTheme.drawerGradient,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          border: Border.all(color: Colors.amber.withOpacity(0.3), width: 1.5),
+          border: Border.all(color: AppTheme.accentColor.withOpacity(0.3), width: 1.5),
         ),
         child: Padding(
           padding: EdgeInsets.only(
@@ -177,29 +170,17 @@ class _CardEditorModalState extends State<CardEditorModal> {
                                 ],
                               ),
                             ),
-                    ),                    const SizedBox(height: 12),
-                    Center(                      child: Row(
+                    ),                    const SizedBox(height: 12),                    Center(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          ElevatedButton.icon(
-                            icon: Icon(Icons.image, color: Colors.amber[100]),
+                        children: [                          ElevatedButton.icon(
+                            icon: Icon(Icons.image, color: AppTheme.amber100),
                             label: Text(
                               "Choose Image",
-                              style: TextStyle(color: Colors.amber[100]),
+                              style: TextStyle(color: AppTheme.amber100),
                             ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.amber.withOpacity(0.2),
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 12,
-                                horizontal: 16,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                side: BorderSide(
-                                  color: Colors.amber.withOpacity(0.4),
-                                ),
-                              ),
-                            ),                            onPressed: () async {
+                            style: AppTheme.amberButtonStyle,
+                            onPressed: () async {
                               final result = await FilePicker.platform.pickFiles(
                                 type: FileType.image,
                               );
@@ -212,26 +193,13 @@ class _CardEditorModalState extends State<CardEditorModal> {
                             },
                           ),
                           if (widget.card.backgroundImagePath != null) ...[
-                            const SizedBox(width: 10),
-                            ElevatedButton.icon(
+                            const SizedBox(width: 10),                            ElevatedButton.icon(
                               icon: Icon(Icons.delete, color: Colors.amber[100]),
                               label: Text(
                                 "Remove Image",
                                 style: TextStyle(color: Colors.amber[100]),
                               ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red.withOpacity(0.2),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                  horizontal: 16,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  side: BorderSide(
-                                    color: Colors.red.withOpacity(0.4),
-                                  ),
-                                ),
-                              ),
+                              style: AppTheme.redButtonStyle,
                               onPressed: () {
                                 setState(() {
                                   widget.card.backgroundImagePath = null;

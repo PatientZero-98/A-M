@@ -1,9 +1,11 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../widgets/track_list.dart';
 import '../widgets/card_grid.dart';
 import '../widgets/audio_controls.dart';
@@ -19,6 +21,21 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  
+  // Request storage permissions for Android
+  Future<bool> _requestStoragePermission() async {
+    if (Platform.isAndroid) {
+      final status = await Permission.storage.request();
+      if (status.isGranted) {
+        return true;
+      } else if (status.isPermanentlyDenied) {
+        // If permissions are permanently denied, direct user to app settings
+        await openAppSettings();
+      }
+      return false;
+    }
+    return true; // Non-Android platforms don't need this permission
+  }
   
   // Build the drawer with fantasy styling
   Widget _buildDrawer(BuildContext context) {
@@ -80,7 +97,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ).createShader(bounds),
                     child: const Text(
-                      'Ambience 4 DnD',
+                      'Dungeons & Music',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -108,14 +125,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.pop(context);
                 _showSettingsDialog(context);
               },
-            ),
-            _buildDrawerItem(
+            ),            _buildDrawerItem(
               context: context,
               icon: Icons.file_upload_outlined,
               title: 'Export',
               onTap: () {
                 Navigator.pop(context);
                 _exportData(context);
+              },
+            ),
+            _buildDrawerItem(
+              context: context,
+              icon: Icons.file_download_outlined,
+              title: 'Import',
+              onTap: () {
+                Navigator.pop(context);
+                _importData(context);
               },
             ),
             _buildDrawerItem(
@@ -201,24 +226,56 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
-  }
-  // Export functionality
+  }  // Export functionality
   void _exportData(BuildContext context) async {
     try {
       String? selectedDirectory;
+      
+      // Request storage permission
+      final hasPermission = await _requestStoragePermission();
+      if (!hasPermission) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Storage permission is required to export data.'),
+            backgroundColor: Colors.red[700],
+          ),
+        );
+        return;
+      }
       
       // Use FilePicker to select directory
       if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
         selectedDirectory = await FilePicker.platform.getDirectoryPath();
       } else {
-        // For mobile platforms, create a directory in the external storage
-        final directory = await getExternalStorageDirectory();
-        if (directory != null) {
-          final exportDir = Directory('${directory.path}/Music4DnD_Export');
+        // For mobile platforms, use the Android media directory
+        try {
+          final mediaDir = Directory('/storage/emulated/0/Android/media/music4dnd/files');
+          
+          // Debug info
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Creating directory at: ${mediaDir.path}'),
+              backgroundColor: Colors.blue[700],
+              duration: const Duration(seconds: 2),
+            ),
+          );
+          
+          if (!await mediaDir.exists()) {
+            await mediaDir.create(recursive: true);
+          }
+          final exportDir = Directory('${mediaDir.path}/Music4DnD_Export');
           if (!await exportDir.exists()) {
             await exportDir.create(recursive: true);
           }
           selectedDirectory = exportDir.path;
+        } catch (dirError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error creating directory: $dirError'),
+              backgroundColor: Colors.red[700],
+            ),
+          );
+          return;
         }
       }
       
@@ -262,39 +319,73 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
       );
-      
-      // Use our ExportService to handle the export
-      final result = await ExportService.exportData(selectedDirectory);
-        // Store a safe context reference
-      final BuildContext scaffoldContext = _scaffoldKey.currentContext!;
-      
-      // Close progress dialog if context is still mounted
-      if (context.mounted) {
-        Navigator.of(context).pop();
-      }
-      
-      if (result.success) {
-        // Show success message with export details using scaffoldContext
-        ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+        try {
+        // Use our ExportService to handle the export
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Export successful! Exported ${result.tracksExported} tracks, '
-              '${result.cardsExported} cards, and ${result.imagesExported} images to $selectedDirectory'
+            content: Text('Starting export to $selectedDirectory'),
+            backgroundColor: Colors.blue[700],
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        
+        final result = await ExportService.exportData(selectedDirectory);
+        
+        // Close progress dialog if context is still mounted
+        if (context.mounted) {
+          Navigator.of(context).pop();
+        }
+        
+        // Get a safe context to use for snackbars
+        BuildContext? snackbarContext = context.mounted ? context : null;
+        if (snackbarContext == null && _scaffoldKey.currentContext != null) {
+          snackbarContext = _scaffoldKey.currentContext;
+        }
+        
+        if (snackbarContext == null) {
+          print("Error: No valid context available for feedback");
+          return;
+        }
+        
+        if (result.success) {
+          // Show success message with export details
+          ScaffoldMessenger.of(snackbarContext).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Export successful! Exported ${result.tracksExported} tracks, '
+                '${result.cardsExported} cards, and ${result.imagesExported} images to $selectedDirectory'
+              ),
+              backgroundColor: Colors.green[700],
+              duration: const Duration(seconds: 5),
             ),
-            backgroundColor: Colors.green[700],
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      } else {
-        // Show error message using scaffoldContext
-        ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-          SnackBar(
-            content: Text('Export failed: ${result.error}'),
-            backgroundColor: Colors.red[700],
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }    } catch (e) {
+          );
+        } else {
+          // Show error message
+          ScaffoldMessenger.of(snackbarContext).showSnackBar(
+            SnackBar(
+              content: Text('Export failed: ${result.error}'),
+              backgroundColor: Colors.red[700],
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } catch (exportError) {
+        // Close progress dialog if context is still mounted
+        if (context.mounted) {
+          Navigator.of(context).pop();
+        }
+        
+        // Show error message
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Export failed with error: $exportError'),
+              backgroundColor: Colors.red[700],
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }} catch (e) {
       // Get a safe context reference
       final BuildContext? scaffoldContext = _scaffoldKey.currentContext;
       
@@ -308,6 +399,231 @@ class _HomeScreenState extends State<HomeScreen> {
         ScaffoldMessenger.of(scaffoldContext).showSnackBar(
           SnackBar(
             content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Colors.red[700],
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+  // Import functionality
+  void _importData(BuildContext context) async {
+    try {
+      String? selectedDirectory;
+      
+      // Request storage permission
+      final hasPermission = await _requestStoragePermission();
+      if (!hasPermission) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Storage permission is required to import data.'),
+            backgroundColor: Colors.red[700],
+          ),
+        );
+        return;
+      }
+      
+      // Use FilePicker to select directory
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        selectedDirectory = await FilePicker.platform.getDirectoryPath();
+      } else {
+        // For mobile platforms, check the media folder
+        try {
+          final mediaDir = Directory('/storage/emulated/0/Android/media/music4dnd/files');
+          
+          // Debug info
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Accessing directory at: ${mediaDir.path}'),
+              backgroundColor: Colors.blue[700],
+              duration: const Duration(seconds: 2),
+            ),
+          );
+          
+          if (!await mediaDir.exists()) {
+            await mediaDir.create(recursive: true);
+          }
+          final importDir = Directory('${mediaDir.path}/Music4DnD_Import');
+          if (!await importDir.exists()) {
+            await importDir.create(recursive: true);
+            // Show message about where to place files
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Please place your cards.json, tracks folder, and images folder in: ${importDir.path}'),
+                backgroundColor: Colors.blue[700],
+                duration: const Duration(seconds: 8),
+              ),
+            );
+            return;
+          }
+          selectedDirectory = importDir.path;
+        } catch (dirError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error accessing directory: $dirError'),
+              backgroundColor: Colors.red[700],
+            ),
+          );
+          return;
+        }
+      }
+      
+      if (selectedDirectory == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Import cancelled or no directory selected.'),
+            backgroundColor: Colors.red[700],
+          ),
+        );
+        return;
+      }
+      
+      // Validate that the selected directory has the correct structure
+      final cardsFile = File('$selectedDirectory/cards.json');
+      final tracksDir = Directory('$selectedDirectory/tracks');
+      final imagesDir = Directory('$selectedDirectory/images');
+      
+      if (!await cardsFile.exists()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Selected directory does not contain a cards.json file.'),
+            backgroundColor: Colors.red[700],
+          ),
+        );
+        return;
+      }
+      
+      // Show progress indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return Dialog(
+            backgroundColor: const Color(0xFF1A1A2E),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: Colors.amber.withOpacity(0.5)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Importing data...',
+                    style: TextStyle(color: Colors.amber[100]),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+      
+      // Get application support directory
+      final appDir = await getApplicationSupportDirectory();
+      final appTracksDir = Directory('${appDir.path}/tracks');
+      final appCardsFile = File('${appDir.path}/cards.json');
+      
+      // Create tracks directory if it doesn't exist
+      if (!await appTracksDir.exists()) {
+        await appTracksDir.create(recursive: true);
+      }
+      
+      // Track metrics
+      int tracksCopied = 0;
+      int imagesCopied = 0;
+      
+      // Read cards data
+      final content = await cardsFile.readAsString();
+      final List<dynamic> jsonList = jsonDecode(content);
+      
+      // Process and copy tracks
+      if (await tracksDir.exists()) {
+        for (final cardData in jsonList) {
+          final tracks = cardData['tracks'] as List;
+          for (final track in tracks) {
+            final trackPath = track['filePath'];
+            if (trackPath != null) {
+              // Extract filename from the path
+              final filename = trackPath.split('/').last;
+              final sourceFile = File('$selectedDirectory/$trackPath');
+              final destFile = File('${appTracksDir.path}/$filename');
+              
+              if (await sourceFile.exists() && !(await destFile.exists())) {
+                await sourceFile.copy(destFile.path);
+                tracksCopied++;
+              }
+              
+              // Update the track path to use the app's file structure
+              track['filePath'] = '${appTracksDir.path}/$filename';
+            }
+          }
+        }
+      }
+      
+      // Process and copy images
+      if (await imagesDir.exists()) {
+        for (final cardData in jsonList) {
+          final bgImagePath = cardData['backgroundImagePath'];
+          if (bgImagePath != null) {
+            // Extract filename from the path
+            final filename = bgImagePath.split('/').last;
+            final sourceFile = File('$selectedDirectory/$bgImagePath');
+            final destFile = File('${appDir.path}/$filename');
+            
+            if (await sourceFile.exists()) {
+              await sourceFile.copy(destFile.path);
+              imagesCopied++;
+            }
+            
+            // Update the image path to use the app's file structure
+            cardData['backgroundImagePath'] = '${appDir.path}/$filename';
+          }
+        }
+      }
+      
+      // Write the updated card data to the app
+      await appCardsFile.writeAsString(jsonEncode(jsonList));
+      
+      // Store a safe context reference
+      final BuildContext scaffoldContext = _scaffoldKey.currentContext!;
+      
+      // Close progress dialog if context is still mounted
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+      
+      // Show success message
+      ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Import successful! Imported $tracksCopied tracks, '
+            '${jsonList.length} cards, and $imagesCopied images.'
+          ),
+          backgroundColor: Colors.green[700],
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      
+    } catch (e) {
+      // Get a safe context reference
+      final BuildContext? scaffoldContext = _scaffoldKey.currentContext;
+      
+      // Close progress dialog if open and context is still mounted
+      if (context.mounted && Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+      
+      // Handle errors using scaffoldContext if available
+      if (scaffoldContext != null) {
+        ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+          SnackBar(
+            content: Text('Import failed: ${e.toString()}'),
             backgroundColor: Colors.red[700],
             duration: const Duration(seconds: 3),
           ),

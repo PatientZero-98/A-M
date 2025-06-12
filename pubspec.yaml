@@ -1,7 +1,7 @@
-name: music4dnd
-description: "A new Flutter project."
+name: dungeons_and_music
+description: "Music player application for Dungeons & Dragons sessions"
 
-publish_to: 'none' 
+publish_to: 'none'
 
 
 version: 1.0.0+1
@@ -26,6 +26,7 @@ dependencies:
   
   cupertino_icons: ^1.0.8
   dotted_border: ^3.0.1
+  permission_handler: ^12.0.0+1
 
 dev_dependencies:
   flutter_test:
@@ -33,6 +34,7 @@ dev_dependencies:
   
   hive_generator: ^2.0.1
   build_runner: ^2.4.6
+  flutter_launcher_icons: ^0.13.1
 
  
   flutter_lints: ^6.0.0
@@ -42,5 +44,17 @@ flutter:
 
   
   uses-material-design: true
+  
+# Flutter Launcher Icons configuration
+flutter_launcher_icons:
+  android: "launcher_icon"  # Using a specific name for Android
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  min_sdk_android: 21 # android min sdk min:16, default 21
+  adaptive_icon_background: "#FFFFFF" # only available for Android 8.0 devices and above
+  adaptive_icon_foreground: "assets/icon/app_icon.png" # using the main icon as foreground too
+  remove_alpha_ios: true
+  web:
+    generate: false
 
 
